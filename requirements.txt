@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+matplotlib
+seaborn
+plotly # if you use plotly
+scikit-learn # if you use machine learning models
+# Add any other libraries you use in your notebooks
