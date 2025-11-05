@@ -12,6 +12,25 @@ from sections.analytics_section import analytics_section
 # Keep your original loader
 from src.data_loader import load_data, convert_to_parquet
 
+
+# --- PASSWORD CHECK CODE FROM STEP 1 GOES HERE ---
+import streamlit as st
+
+def check_password():
+    """Returns True if the user entered the correct password."""
+    
+    correct_password = st.secrets["APP_PASSWORD"]
+    password_attempt = st.text_input("Enter Password", type="password", key="password_input")
+
+    if password_attempt == correct_password:
+        return True
+    elif password_attempt == "":
+        st.info("Please enter the password to see the dashboard.")
+        return False
+    else:
+        st.error("Incorrect password. Please try again.")
+        return False
+# ---------------------------------------------------
 # --- Data Profile Configuration ---
 DATA_PROFILES = {
     "Hymon": {
