@@ -32,6 +32,8 @@ def check_password():
         return False
 # ---------------------------------------------------
 # --- Data Profile Configuration ---
+# This line is new
+if check_password():
 DATA_PROFILES = {
     "Hymon": {
         "separator": ";",
