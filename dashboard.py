@@ -97,7 +97,7 @@ def load_sc_com_csv(file_path, drop_ms_option=False):
     combined_headers = combined_headers.str.replace(r"\s+", " ", regex=True).str.replace("-", "").str.strip()
     
     # --- NEW FIX ---
-    # Count the number of headers we *actually* found (e.g., 33)
+    # Count the number of headers we *actually* found
     num_expected_cols = len(combined_headers)
     # --- END NEW FIX ---
 
@@ -114,7 +114,7 @@ def load_sc_com_csv(file_path, drop_ms_option=False):
         usecols=range(num_expected_cols)  # <--- THIS IS THE FIX
     )
     
-    # This line will now work, as both have 33 columns
+    # This line will now work
     df.columns = combined_headers
 
     # Make columns unique
