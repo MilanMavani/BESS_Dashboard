@@ -255,4 +255,8 @@ if check_password():
         plot_data_section()
 
     with tab_analytics:
+<<<<<<< HEAD
         analytics_section()
+=======
+        analytics_section()
+>>>>>>> 822d38f7d0d628e6066a56496f625671ce251ae0
