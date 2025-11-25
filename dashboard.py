@@ -5,45 +5,45 @@ import tempfile
 import pandas as pd
 import streamlit as st
 
-# Ensure these files exist in the 'sections' folder:
-from sections.preprocessing_section import preprocessing_section
-from sections.plot_data_section import plot_data_section
-# from sections.analytics_section import analytics_section
-
-# Keep your original loader
-from src.data_loader import load_data, convert_to_parquet
-
-# --- Page config (MOVED TO THE TOP) ---
-# This MUST be the first Streamlit command
+# --- 1. PAGE CONFIG (MUST BE THE FIRST STREAMLIT COMMAND) ---
 st.set_page_config(
     page_title="Universal Data Dashboard",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# --- PASSWORD CHECK FUNCTION ---
+# --- 2. IMPORTS (Now safe to import custom files) ---
+# Ensure these files exist in the 'sections' folder:
+from sections.preprocessing_section import preprocessing_section
+from sections.plot_data_section import plot_data_section
+
+# Keep your original loader
+from src.data_loader import load_data, convert_to_parquet
+
+# --- 3. PASSWORD CHECK FUNCTION ---
 def check_password():
     """Returns True if the user entered the correct password."""
-    
-    # Get the password from Streamlit Secrets
-    # "APP_PASSWORD" must match the name of the secret you created
-    correct_password = st.secrets["APP_PASSWORD"]
+    # Ensure you have .streamlit/secrets.toml with [APP_PASSWORD] = "your_password"
+    if "APP_PASSWORD" not in st.secrets:
+        st.error("Secrets not found. Please set up .streamlit/secrets.toml")
+        return False
 
-    # Ask the user for the password
-    # The key "password_input" makes this input unique
+    correct_password = st.secrets["APP_PASSWORD"]
     password_attempt = st.text_input("Enter Password", type="password", key="password_input")
 
-    # Check if the password is correct
     if password_attempt == correct_password:
-        return True  # Password is correct
+        return True
     elif password_attempt == "":
-        # If no password, just show a prompt
         st.info("Please enter the password in order to access the dashboard.")
         return False
     else:
-        # If password is wrong, show an error
         st.error("Incorrect password. Please try again.")
         return False
+
+# --- 4. EXECUTE PASSWORD CHECK ---
+# (Uncomment the next two lines if you want to enforce the password)
+# if not check_password():
+#     st.stop()  # Stop execution here if password is wrong
 
 # --- Data Profile Configuration ---
 DATA_PROFILES = {
@@ -66,6 +66,17 @@ DATA_PROFILES = {
         "description": "Cell Data for Pulse Test",
     },
 }
+
+# --- Helper: Memory Optimization ---
+# We define this here to apply it to the local Sc_Com loader as well
+def optimize_dtypes(df):
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            num_unique_values = len(df[col].unique())
+            num_total_values = len(df[col])
+            if num_total_values > 0 and (num_unique_values / num_total_values) < 0.5:
+                df[col] = df[col].astype('category')
+    return df
 
 # --- Sc_Com / HyCon Loader ---
 def load_sc_com_csv(file_path, drop_ms_option=False):
@@ -139,15 +150,15 @@ def load_sc_com_csv(file_path, drop_ms_option=False):
 
     # Parse Timestamp
     df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
+    
+    # --- NEW: Optimize Memory for Sc_Com files too ---
+    df = optimize_dtypes(df)
+    # -------------------------------------------------
+    
     return df
 
 
-# --- Page config ---
-st.set_page_config(
-    page_title="Universal Data Dashboard",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# --- UI Content Starts Here ---
 st.title("Data visualisation & Analytics")
 st.markdown("Dashboard allows diff. data format handling, preprocessing, and visualization.")
 
@@ -164,7 +175,6 @@ if "file_type" not in st.session_state:
     st.session_state.file_type = None
 
 # --- Main Tabs ---
-# FIX: Removed 'tab_analytics' variable and label
 tab_load, tab_preprocess, tab_plot = st.tabs(
     ["📂 Load Data", "🛠️ Preprocessing", "📈 Plot Data"]  
 )
@@ -193,7 +203,7 @@ with tab_load:
             st.text(f"Bad Lines Action: '{profile['bad_lines_action']}'")
             st.text(f"Skip Rows: {profile['skiprows'] if profile['skiprows'] else 'None'}")
 
-    # FIX: Indentation moved BACK (Left) so this is NOT in the sidebar
+    # Load Data Button (Outside Sidebar)
     if st.button("Load Data"):
         # --- Aggressive Memory Cleanup ---
         st.session_state.current_data = pd.DataFrame()
@@ -206,7 +216,6 @@ with tab_load:
             st.session_state.file_type = uploaded_file.name.split(".")[-1].lower()
             st.session_state.uploaded_file = uploaded_file
             
-            # FIX: .write() is now INSIDE the 'with' block
             with tempfile.NamedTemporaryFile(delete=False, suffix=f".{st.session_state.file_type}") as tmp_file:
                 uploaded_file.seek(0)
                 tmp_file.write(uploaded_file.read())
@@ -262,5 +271,3 @@ with tab_preprocess:
 with tab_plot:
     # Plot section includes its own export (under the chart) and keeps the chart visible after downloads
     plot_data_section()
-
-# Analytics section completely removed
