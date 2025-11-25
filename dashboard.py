@@ -1,5 +1,6 @@
 import os
 import re
+import gc  # Garbage Collector
 import tempfile
 import pandas as pd
 import streamlit as st
@@ -56,7 +57,7 @@ DATA_PROFILES = {
         "separator": ";",
         "bad_lines_action": "skip",
         "skiprows": None,
-        "description": "Sc_Com / HyCon: Detect  automatically",
+        "description": "Sc_Com / HyCon: Detect automatically",
     },
     "Cell Data": {
         "separator": ";",
@@ -96,11 +97,7 @@ def load_sc_com_csv(file_path, drop_ms_option=False):
     combined_headers = header_rows.fillna("").astype(str).agg(" ".join)
     combined_headers = combined_headers.str.replace(r"\s+", " ", regex=True).str.replace("-", "").str.strip()
     
-    # --- NEW FIX ---
-    # Count the number of headers we *actually* found
     num_expected_cols = len(combined_headers)
-    # --- END NEW FIX ---
-
 
     # Read data below timestamp row
     df = pd.read_csv(
@@ -111,10 +108,9 @@ def load_sc_com_csv(file_path, drop_ms_option=False):
         skiprows=timestamp_row + 1,
         header=None,
         on_bad_lines="skip",
-        usecols=range(num_expected_cols)  # <--- THIS IS THE FIX
+        usecols=range(num_expected_cols)
     )
     
-    # This line will now work
     df.columns = combined_headers
 
     # Make columns unique
@@ -146,113 +142,125 @@ def load_sc_com_csv(file_path, drop_ms_option=False):
     return df
 
 
-# --- MAIN APP LOGIC (WRAPPED IN PASSWORD CHECK) ---
-if check_password():
+# --- Page config ---
+st.set_page_config(
+    page_title="Universal Data Dashboard",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+st.title("Data visualisation & Analytics")
+st.markdown("Dashboard allows diff. data format handling, preprocessing, and visualization.")
 
-    # All the code below this is INDENTED
-    
-    st.title("Data visualisation & Analytics")
-    st.markdown("Dashboard allows diff. data format handling, preprocessing, and visualization.")
+# --- Session state ---
+if "current_data" not in st.session_state:
+    st.session_state.current_data = pd.DataFrame()
+if "uploaded_file" not in st.session_state:
+    st.session_state.uploaded_file = None
+if "processed_data" not in st.session_state:
+    st.session_state.processed_data = None
+if "file_path" not in st.session_state:
+    st.session_state.file_path = None
+if "file_type" not in st.session_state:
+    st.session_state.file_type = None
 
-    # --- Session state ---
-    if "current_data" not in st.session_state:
-        st.session_state.current_data = pd.DataFrame()
-    if "uploaded_file" not in st.session_state:
-        st.session_state.uploaded_file = None
-    if "processed_data" not in st.session_state:
-        st.session_state.processed_data = None
-    if "file_path" not in st.session_state:
-        st.session_state.file_path = None
-    if "file_type" not in st.session_state:
-        st.session_state.file_type = None
+# --- Main Tabs ---
+# FIX: Removed 'tab_analytics' variable and label
+tab_load, tab_preprocess, tab_plot = st.tabs(
+    ["📂 Load Data", "🛠️ Preprocessing", "📈 Plot Data"]  
+)
 
-    # --- Main Tabs ---
-    tab_load, tab_preprocess, tab_plot, tab_analytics = st.tabs(
-        ["📂 Load Data", "🛠️ Preprocessing", "📈 Plot Data"]  # "📊 Analytics" 
+with tab_load:
+    st.header("Upload and Load Data")
+    uploaded_file = st.file_uploader(
+        "Upload a CSV or Parquet file", type=["csv", "parquet"], key="file_uploader"
     )
 
-    with tab_load:
-        st.header("Upload and Load Data")
-        uploaded_file = st.file_uploader(
-            "Upload a CSV or Parquet file", type=["csv", "parquet"], key="file_uploader"
-        )
+    # Sidebar options
+    with st.sidebar.container():
+        st.subheader("Data Loading Options")
+        drop_ms_option = st.checkbox("Drop 'ms' column (for Tool SCC)", value=False)
 
-        # Sidebar options
-        with st.sidebar.container():
-            st.subheader("Data Loading Options")
-            drop_ms_option = st.checkbox("Drop 'ms' column (for Tool SCC)", value=False)
+        if uploaded_file and uploaded_file.name.lower().endswith(".csv"):
+            st.info("CSV Profile Selector")
+            profile_name = st.selectbox(
+                "Select Data Profile", options=list(DATA_PROFILES.keys()), key="csv_profile_selector"
+            )
+            profile = DATA_PROFILES[profile_name]
+            st.markdown(f"**Description:** _{profile['description']}_")
+            st.markdown("---")
+            st.caption("Applied Parameters:")
+            st.text(f"Delimiter: '{profile['separator'] if profile['separator'] else 'auto'}'")
+            st.text(f"Bad Lines Action: '{profile['bad_lines_action']}'")
+            st.text(f"Skip Rows: {profile['skiprows'] if profile['skiprows'] else 'None'}")
 
-            if uploaded_file and uploaded_file.name.lower().endswith(".csv"):
-                st.info("CSV Profile Selector")
-                profile_name = st.selectbox(
-                    "Select Data Profile", options=list(DATA_PROFILES.keys()), key="csv_profile_selector"
-                )
-                profile = DATA_PROFILES[profile_name]
-                st.markdown(f"**Description:** _{profile['description']}_")
-                st.markdown("---")
-                st.caption("Applied Parameters:")
-                st.text(f"Delimiter: '{profile['separator'] if profile['separator'] else 'auto'}'")
-                st.text(f"Bad Lines Action: '{profile['bad_lines_action']}'")
-                st.text(f"Skip Rows: {profile['skiprows'] if profile['skiprows'] else 'None'}")
+    # FIX: Indentation moved BACK (Left) so this is NOT in the sidebar
+    if st.button("Load Data"):
+        # --- Aggressive Memory Cleanup ---
+        st.session_state.current_data = pd.DataFrame()
+        st.session_state.processed_data = None
+        st.cache_data.clear()
+        gc.collect()
+        # ---------------------------------
 
-        if st.button("Load Data"):
-            if uploaded_file is not None:
-                st.session_state.file_type = uploaded_file.name.split(".")[-1].lower()
-                st.session_state.uploaded_file = uploaded_file
-                with tempfile.NamedTemporaryFile(delete=False, suffix=f".{st.session_state.file_type}") as tmp_file:
-                    uploaded_file.seek(0)
-                    tmp_file.write(uploaded_file.read())
-                    tmp_file_path = tmp_file.name
+        if uploaded_file is not None:
+            st.session_state.file_type = uploaded_file.name.split(".")[-1].lower()
+            st.session_state.uploaded_file = uploaded_file
+            
+            # FIX: .write() is now INSIDE the 'with' block
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{st.session_state.file_type}") as tmp_file:
+                uploaded_file.seek(0)
+                tmp_file.write(uploaded_file.read())
+                tmp_file_path = tmp_file.name
 
-                try:
-                    if st.session_state.file_type == "csv":
-                        selected_profile = st.session_state.get("csv_profile_selector", "Hymon")
-                        if selected_profile == "Sc_Com / HyCon":
-                            df = load_sc_com_csv(tmp_file_path, drop_ms_option=drop_ms_option)
-                        else:
-                            profile = DATA_PROFILES[selected_profile]
-                            df = load_data(
-                                uploaded_file,
-                                tmp_file_path,
-                                profile["separator"],
-                                profile["bad_lines_action"],
-                                st.session_state.file_type,
-                                profile["skiprows"],
-                            )
+            try:
+                if st.session_state.file_type == "csv":
+                    selected_profile = st.session_state.get("csv_profile_selector", "Hymon")
+                    if selected_profile == "Sc_Com / HyCon":
+                        df = load_sc_com_csv(tmp_file_path, drop_ms_option=drop_ms_option)
                     else:
-                        df = load_data(uploaded_file, tmp_file_path, None, None, st.session_state.file_type, None)
+                        profile = DATA_PROFILES[selected_profile]
+                        df = load_data(
+                            uploaded_file,
+                            tmp_file_path,
+                            profile["separator"],
+                            profile["bad_lines_action"],
+                            st.session_state.file_type,
+                            profile["skiprows"],
+                        )
+                else:
+                    df = load_data(uploaded_file, tmp_file_path, None, None, st.session_state.file_type, None)
 
-                    if df is not None and not df.empty:
-                        # Normalize device column
-                        if "device-address:uid" in df.columns:
-                            pass
-                        elif "Device" in df.columns:
-                            df.rename(columns={"Device": "device-address:uid"}, inplace=True)
-                        else:
-                            source_label = os.path.splitext(os.path.basename(uploaded_file.name))[0]
-                            df["device-address:uid"] = source_label
-
-                        st.session_state.current_data = df
-                        st.session_state.processed_data = df.copy()
-                        st.success("Data loaded successfully!")
-                        st.write("First 5 rows of the loaded data:")
-                        st.dataframe(st.session_state.current_data.head())
+                if df is not None and not df.empty:
+                    # Normalize device column
+                    if "device-address:uid" in df.columns:
+                        pass
+                    elif "Device" in df.columns:
+                        df.rename(columns={"Device": "device-address:uid"}, inplace=True)
                     else:
-                        st.error("Failed to load data.")
-                finally:
+                        source_label = os.path.splitext(os.path.basename(uploaded_file.name))[0]
+                        df["device-address:uid"] = source_label
+
+                    st.session_state.current_data = df
+                    st.session_state.processed_data = df.copy()
+                    st.success("Data loaded successfully!")
+                    st.write("First 5 rows of the loaded data:")
+                    st.dataframe(st.session_state.current_data.head())
+                else:
+                    st.error("Failed to load data.")
+            finally:
+                if os.path.exists(tmp_file_path):
                     os.unlink(tmp_file_path)
-            else:
-                st.warning("Please upload a file first.")
+        else:
+            st.warning("Please upload a file first.")
 
-    with tab_preprocess:
-        data_to_use = (
-            st.session_state.processed_data if st.session_state.processed_data is not None else st.session_state.current_data
-        )
-        preprocessing_section(data_to_use)
+with tab_preprocess:
+    data_to_use = (
+        st.session_state.processed_data if st.session_state.processed_data is not None else st.session_state.current_data
+    )
+    preprocessing_section(data_to_use)
 
-    with tab_plot:
-        # Plot section includes its own export (under the chart) and keeps the chart visible after downloads
-        plot_data_section()
+with tab_plot:
+    # Plot section includes its own export (under the chart) and keeps the chart visible after downloads
+    plot_data_section()
 
-    # with tab_analytics:
-    #     analytics_section()
+# Analytics section completely removed

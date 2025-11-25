@@ -1,5 +1,6 @@
 import os
 import re
+import gc  # Garbage Collector
 import tempfile
 import pandas as pd
 import streamlit as st
@@ -7,7 +8,7 @@ import streamlit as st
 # Ensure these files exist in the 'sections' folder:
 from sections.preprocessing_section import preprocessing_section
 from sections.plot_data_section import plot_data_section
-# from sections.analytics_section import analytics_section
+# Analytics import removed
 
 # Keep your original loader
 from src.data_loader import load_data, convert_to_parquet
@@ -24,7 +25,7 @@ DATA_PROFILES = {
         "separator": ";",
         "bad_lines_action": "skip",
         "skiprows": None,
-        "description": "Sc_Com / HyCon: Detect  automatically",
+        "description": "Sc_Com / HyCon: Detect automatically",
     },
     "Cell Data": {
         "separator": ";",
@@ -64,11 +65,7 @@ def load_sc_com_csv(file_path, drop_ms_option=False):
     combined_headers = header_rows.fillna("").astype(str).agg(" ".join)
     combined_headers = combined_headers.str.replace(r"\s+", " ", regex=True).str.replace("-", "").str.strip()
     
-    # --- NEW FIX ---
-    # Count the number of headers we *actually* found (e.g., 33)
     num_expected_cols = len(combined_headers)
-    # --- END NEW FIX ---
-
 
     # Read data below timestamp row
     df = pd.read_csv(
@@ -79,10 +76,9 @@ def load_sc_com_csv(file_path, drop_ms_option=False):
         skiprows=timestamp_row + 1,
         header=None,
         on_bad_lines="skip",
-        usecols=range(num_expected_cols)  # <--- THIS IS THE FIX
+        usecols=range(num_expected_cols)
     )
     
-    # This line will now work, as both have 33 columns
     df.columns = combined_headers
 
     # Make columns unique
@@ -136,8 +132,9 @@ if "file_type" not in st.session_state:
     st.session_state.file_type = None
 
 # --- Main Tabs ---
-tab_load, tab_preprocess, tab_plot, tab_analytics = st.tabs(
-    ["📂 Load Data", "🛠️ Preprocessing", "📈 Plot Data"]  # "📊 Analytics"
+# FIX: Removed 'tab_analytics' variable and label
+tab_load, tab_preprocess, tab_plot = st.tabs(
+    ["📂 Load Data", "🛠️ Preprocessing", "📈 Plot Data"]  
 )
 
 with tab_load:
@@ -164,10 +161,20 @@ with tab_load:
             st.text(f"Bad Lines Action: '{profile['bad_lines_action']}'")
             st.text(f"Skip Rows: {profile['skiprows'] if profile['skiprows'] else 'None'}")
 
+    # FIX: Indentation moved BACK (Left) so this is NOT in the sidebar
     if st.button("Load Data"):
+        # --- Aggressive Memory Cleanup ---
+        st.session_state.current_data = pd.DataFrame()
+        st.session_state.processed_data = None
+        st.cache_data.clear()
+        gc.collect()
+        # ---------------------------------
+
         if uploaded_file is not None:
             st.session_state.file_type = uploaded_file.name.split(".")[-1].lower()
             st.session_state.uploaded_file = uploaded_file
+            
+            # FIX: .write() is now INSIDE the 'with' block
             with tempfile.NamedTemporaryFile(delete=False, suffix=f".{st.session_state.file_type}") as tmp_file:
                 uploaded_file.seek(0)
                 tmp_file.write(uploaded_file.read())
@@ -209,7 +216,8 @@ with tab_load:
                 else:
                     st.error("Failed to load data.")
             finally:
-                os.unlink(tmp_file_path)
+                if os.path.exists(tmp_file_path):
+                    os.unlink(tmp_file_path)
         else:
             st.warning("Please upload a file first.")
 
@@ -223,5 +231,4 @@ with tab_plot:
     # Plot section includes its own export (under the chart) and keeps the chart visible after downloads
     plot_data_section()
 
-# with tab_analytics:
-#     analytics_section()
+# Analytics section completely removed
