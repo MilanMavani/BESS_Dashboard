@@ -18,7 +18,7 @@ from sections.preprocessing_section import preprocessing_section
 from sections.plot_data_section import plot_data_section
 
 # Keep your original loader
-from src.data_loader import load_data
+from src.data_loader import load_data, optimize_dtypes
 
 # --- 3. PASSWORD CHECK FUNCTION ---
 def check_password():
@@ -220,8 +220,13 @@ with tab_load:
             try:
                 if st.session_state.file_type == "csv":
                     selected_profile = st.session_state.get("csv_profile_selector", "Hymon")
+                    
                     if selected_profile == "Sc_Com / HyCon":
+                        # 1. Load the specific format
                         df = load_sc_com_csv(tmp_file_path)
+                        # 2. Fix the "Category" issue (Apply robust numeric conversion)
+                        if df is not None and not df.empty:
+                            df = optimize_dtypes(df)
                     else:
                         profile = DATA_PROFILES[selected_profile]
                         df = load_data(
@@ -237,14 +242,25 @@ with tab_load:
 
                 if df is not None and not df.empty:
                     # --- DEVICE COLUMN NORMALIZATION ---
-                    # 1. Try to find the device column automatically
+                    
+                    # 1. Check if we already have it
                     if "device-address:uid" in df.columns:
-                        pass # Found it!
+                        pass 
+                    
+                    # 2. Check for "Device"
                     elif "Device" in df.columns:
                         df.rename(columns={"Device": "device-address:uid"}, inplace=True)
                         st.info("Automatically detected and renamed 'Device' column.")
-                    
-                    # NOTE: If we can't find it, we handle it via the Manual Selector below.
+
+                    # 3. NEW: Handle Sc_Com / HyCon (Single Device Logic)
+                    elif selected_profile == "Sc_Com / HyCon":
+                        # Use the filename (without .csv) as the Device ID
+                        clean_name = os.path.splitext(uploaded_file.name)[0]
+                        df["device-address:uid"] = clean_name
+                        st.info(f"Sc_Com profile detected: Assigned Device ID '{clean_name}' from filename.")
+
+                    # If none of the above match, the code will fall through 
+                    # to the 'Manual Selector' at the bottom of the script.
                     
                     st.session_state.current_data = df
                     st.session_state.processed_data = df.copy()
