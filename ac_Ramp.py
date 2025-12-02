@@ -8,10 +8,10 @@ from typing import Optional, Dict, List, Tuple, Set
 from pathlib import Path
 import io
 
-# =======================================================================
+
 # SECTION 1: AC DATA LOADING FUNCTION
 # (This section is unchanged)
-# =======================================================================
+
 
 @st.cache_data
 def load_hycon_hybrid_fast(uploaded_file,
@@ -70,10 +70,10 @@ def load_hycon_hybrid_fast(uploaded_file,
     df['Timestamp'] = pd.to_datetime(df['Timestamp'], errors='coerce', utc=parse_timestamp_utc)
     return df
 
-# =======================================================================
+
 # SECTION 2: CONSOLIDATED HELPER FUNCTIONS
 # (This section is unchanged)
-# =======================================================================
+
 
 def _sanitize_time_col(d: pd.DataFrame, time_col: str) -> pd.DataFrame:
     """Helper to clean and sort the time column."""
@@ -200,10 +200,10 @@ def convert_mixed_numeric_columns(df_in: pd.DataFrame, exclude: set = None, verb
             
     return df_out
 
-# =======================================================================
+
 # SECTION 2.5: 3-STATE DETECTION FUNCTION
 # (This section is unchanged from your last correct version)
-# =======================================================================
+
 
 @st.cache_data
 def find_all_events(df_ac: pd.DataFrame,
@@ -280,9 +280,9 @@ def find_all_events(df_ac: pd.DataFrame,
     return sorted(events, key=lambda x: x['start'])
 
 
-# =======================================================================
+
 # SECTION 3: ***MODIFIED*** AC-SIDE ANALYSIS FUNCTIONS
-# =======================================================================
+
 
 def compute_nominal_from_poi_plotly(
     df: pd.DataFrame,
