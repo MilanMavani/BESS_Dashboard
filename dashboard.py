@@ -22,7 +22,7 @@ from src.data_loader import load_data, optimize_dtypes
 
 # --- 3. PASSWORD CHECK FUNCTION ---
 def check_password():
-    """Returns True if the user entered the correct password."""
+    
     # Ensure you have .streamlit/secrets.toml with [APP_PASSWORD] = "your_password"
     if "APP_PASSWORD" not in st.secrets:
         # If no password set in secrets, allow access (or change to error if strict)
@@ -173,9 +173,9 @@ tab_load, tab_preprocess, tab_plot = st.tabs(
     ["📂 Load Data", "🛠️ Preprocessing", "📈 Plot Data"]  
 )
 
-# -----------------------------------------------------------------------------
+
 # TAB 1: LOAD DATA
-# -----------------------------------------------------------------------------
+
 with tab_load:
     st.header("Upload and Load Data")
     uploaded_file = st.file_uploader(
@@ -306,18 +306,18 @@ with tab_load:
             st.success(f"Successfully mapped '{device_col_option}' as the Device ID!")
             st.rerun() # Refresh to update the UI
 
-# -----------------------------------------------------------------------------
+
 # TAB 2: PREPROCESSING
-# -----------------------------------------------------------------------------
+
 with tab_preprocess:
     data_to_use = (
         st.session_state.processed_data if st.session_state.processed_data is not None else st.session_state.current_data
     )
     preprocessing_section(data_to_use)
 
-# -----------------------------------------------------------------------------
+
 # TAB 3: PLOT DATA
-# -----------------------------------------------------------------------------
+
 with tab_plot:
     # Plot section includes its own export logic
     plot_data_section()

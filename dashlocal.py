@@ -166,7 +166,7 @@ with tab_load:
         st.session_state.processed_data = None
         st.cache_data.clear()
         gc.collect()
-        # ---------------------------------
+        
 
         if uploaded_file is not None:
             st.session_state.file_type = uploaded_file.name.split(".")[-1].lower()
@@ -229,4 +229,3 @@ with tab_plot:
     # Plot section includes its own export (under the chart) and keeps the chart visible after downloads
     plot_data_section()
 
-# Analytics section completely removed
